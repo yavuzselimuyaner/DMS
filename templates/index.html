@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Document Management System</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 700px; margin: 40px auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        h1 { text-align: center; color: #2c3e50; }
+        form { margin-bottom: 30px; }
+        input[type="file"] { margin-bottom: 10px; }
+        .msg { color: #27ae60; margin-bottom: 15px; }
+        ul { list-style: none; padding: 0; }
+        li { margin: 10px 0; }
+        a { color: #2980b9; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Document Management System</h1>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="msg">{{ messages[0] }}</div>
+      {% endif %}
+    {% endwith %}
+    <form method="get" style="margin-bottom: 30px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input type="text" name="q" placeholder="Search documents..." value="{{ query|default('') }}">
+        <select name="sort">
+            <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Sort by Name</option>
+            <option value="date" {% if sort_by == 'date' %}selected{% endif %}>Sort by Date</option>
+        </select>
+        <label for="date_from">From:</label>
+        <input type="date" name="date_from" id="date_from" value="{{ date_from|default('') }}">
+        <label for="date_to">To:</label>
+        <input type="date" name="date_to" id="date_to" value="{{ date_to|default('') }}">
+        <button type="submit">Filter</button>
+    </form>
+    <form method="post" enctype="multipart/form-data">
+        <input type="file" name="file" required>
+        <input type="text" name="explanation" placeholder="Explanation (optional)" style="width: 250px; margin-left: 10px;">
+        <button type="submit">Upload</button>
+    </form>
+    <h2>Uploaded Documents</h2>
+    <ul>
+        {% for file in files %}
+            <li>
+                <a href="{{ url_for('uploaded_file', filename=file) }}" target="_blank">{{ file }}</a>
+                {% if file.lower().endswith('.pdf') or file.lower().endswith('.txt') or file.lower().endswith('.docx') %}
+                    <a href="{{ url_for('preview_file', filename=file) }}" target="_blank" style="margin-left:10px; color:#16a085;">[Preview]</a>
+                {% endif %}
+                <span style="color:#888; font-size:0.95em; margin-left:10px;">
+                    Uploaded by: {{ metadata[file]['uploaded_by'] if metadata.get(file) and metadata[file].get('uploaded_by') else 'Unknown' }}
+                    {% if metadata.get(file) and metadata[file].get('explanation') %}
+                        | Explanation: {{ metadata[file]['explanation'] }}
+                    {% endif %}
+                    {% if metadata.get(file) and metadata[file].get('deleted_by') %}
+                        | Deleted by: {{ metadata[file]['deleted_by'] }}
+                    {% endif %}
+                </span>
+                {% if is_admin %}
+                <form method="post" action="{{ url_for('delete_file', filename=file) }}" style="display:inline;">
+                    <button type="submit" onclick="return confirm('Delete this file?')">Delete</button>
+                </form>
+                {% endif %}
+            </li>
+        {% else %}
+            <li>No documents uploaded yet.</li>
+        {% endfor %}
+    </ul>
+    <div style="margin-top:20px;">
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+</div>
+</body>
+</html>
