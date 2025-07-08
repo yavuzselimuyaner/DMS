@@ -28,7 +28,7 @@ CREATE TABLE document_types (
 
 
 
--- Belge erişim izinleri tablosu (en son oluşturulmalı)
+-- Belge erişim izinleri tablosu
 CREATE TABLE permissions (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
