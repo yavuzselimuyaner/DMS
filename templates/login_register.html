@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Register</title>
+    <title>Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
 </head>
 <body>
-<div class="container" style="max-width: 500px; margin-top: 60px;">
-    <h2 class="mb-4 text-center">Create Account</h2>
+<div class="d-flex justify-content-center align-items-center min-vh-100">
+  <div class="container centered-form" style="max-width: 400px;">
+    <h2 class="mb-4 text-center">Login</h2>
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <div class="alert alert-info">{{ messages[0] }}</div>
@@ -20,25 +21,15 @@
             <input type="text" class="form-control" id="username" name="username" required>
         </div>
         <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <input type="email" class="form-control" id="email" name="email" required>
-        </div>
-        <div class="mb-3">
             <label for="password" class="form-label">Password</label>
             <input type="password" class="form-control" id="password" name="password" required>
         </div>
-        <div class="mb-3">
-            <label for="role" class="form-label">Role</label>
-            <select class="form-select" id="role" name="role">
-                <option value="user" selected>User</option>
-                <option value="admin">Admin</option>
-            </select>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Register</button>
+        <button type="submit" name="login" class="btn btn-primary w-100">Login</button>
         <div class="mt-3 text-center">
-            <a href="{{ url_for('login') }}">Already have an account? Login</a>
+            <a href="{{ url_for('register_only') }}">Hesabınız yoksa hemen yapın</a>
         </div>
     </form>
+  </div>
 </div>
 </body>
 </html>

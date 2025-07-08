@@ -5,6 +5,7 @@ import json
 from flask_sqlalchemy import SQLAlchemy
 from io import BytesIO
 import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
@@ -46,17 +47,38 @@ def save_metadata(metadata):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        user = USERS.get(username)
-        if user and user['password'] == password:
-            session['username'] = username
-            session['role'] = user['role']
-            flash('Login successful!')
-            return redirect(url_for('upload_file'))
-        else:
-            flash('Invalid credentials')
-    return render_template('login.html')
+        if 'login' in request.form:
+            # Giriş işlemi
+            username = request.form['username']
+            password = request.form['password']
+            user = db.session.query(User).filter_by(username=username).first()
+            if user and check_password_hash(user.password_hash, password):
+                session['username'] = user.username
+                session['role'] = user.role
+                flash('Login successful!')
+                return redirect(url_for('upload_file'))
+            else:
+                flash('Invalid credentials')
+        elif 'register' in request.form:
+            # Kayıt işlemi
+            username = request.form['reg_username'].strip()
+            email = request.form['reg_email'].strip()
+            password = request.form['reg_password']
+            # Kullanıcı adı veya e-posta var mı?
+            if db.session.query(User).filter((User.username == username) | (User.email == email)).first():
+                flash('Username or email already exists')
+            else:
+                user = User(
+                    username=username,
+                    email=email,
+                    password_hash=generate_password_hash(password),
+                    role='user',
+                    created_at=datetime.datetime.now()
+                )
+                db.session.add(user)
+                db.session.commit()
+                flash('Account created! You can now log in.')
+    return render_template('login_register.html')
 
 @app.route('/logout')
 def logout():
@@ -129,6 +151,11 @@ def upload_file():
         return redirect(url_for('upload_file'))
     # TXT dosyaları için önizleme (ilk 3 satır)
     previews = {}
+    user_map = {}
+    user_ids = set(doc.uploaded_by for doc in documents if doc.uploaded_by)
+    if user_ids:
+        users = User.query.filter(User.id.in_(user_ids)).all()
+        user_map = {u.id: u.username for u in users}
     for doc in documents:
         ext = os.path.splitext(doc.title)[1].lower()
         if ext == '.txt' and doc.file_data:
@@ -139,7 +166,7 @@ def upload_file():
                 previews[doc.id] = ''
         else:
             previews[doc.id] = ''
-    return render_template('index.html', documents=documents, paginated_documents=paginated_documents, sort_by=sort_by, query=query, date_from=date_from, date_to=date_to, is_admin=is_admin(), previews=previews, page=page, per_page=per_page, page_count=page_count, total=total)
+    return render_template('index.html', documents=documents, paginated_documents=paginated_documents, sort_by=sort_by, query=query, date_from=date_from, date_to=date_to, is_admin=is_admin(), previews=previews, page=page, per_page=per_page, page_count=page_count, total=total, user_map=user_map)
 
 @app.route('/delete/<int:doc_id>', methods=['POST'])
 def delete_file(doc_id):
@@ -196,6 +223,32 @@ def preview_file(doc_id):
     else:
         flash('Preview not supported for this file type.')
         return redirect(url_for('upload_file'))
+
+@app.route('/register_only', methods=['GET', 'POST'])
+def register_only():
+    if request.method == 'POST':
+        username = request.form['reg_username'].strip()
+        email = request.form['reg_email'].strip()
+        password = request.form['reg_password']
+        password2 = request.form['reg_password2']
+        if password != password2:
+            flash('Passwords do not match!')
+            return render_template('register_only.html')
+        if db.session.query(User).filter((User.username == username) | (User.email == email)).first():
+            flash('Username or email already exists')
+            return render_template('register_only.html')
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password),
+            role='user',
+            created_at=datetime.datetime.now()
+        )
+        db.session.add(user)
+        db.session.commit()
+        flash('Account created! You can now log in.')
+        return redirect(url_for('login'))
+    return render_template('register_only.html')
 
 # SQLAlchemy Models
 class User(db.Model):
