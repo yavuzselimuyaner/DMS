@@ -37,4 +37,3 @@ CREATE TABLE permissions (
     UNIQUE(user_id, document_id)
 );
 
-Add schema.sql file inside database folder
