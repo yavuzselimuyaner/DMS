@@ -8,7 +8,7 @@
 <body>
 <div class="container">
     <h2>PDF Preview: {{ filename }}</h2>
-    <iframe class="pdf-viewer" src="{{ url_for('uploaded_file', filename=filename) }}"></iframe>
+    <iframe class="pdf-viewer" style="width:100%;height:80vh;min-height:500px;" src="{{ url_for('download_file', doc_id=doc_id) }}?preview=1"></iframe>
     <div style="margin-top:20px; text-align:center;">
         <a href="{{ url_for('upload_file') }}">Back to Documents</a>
     </div>

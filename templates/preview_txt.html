@@ -8,7 +8,12 @@
 <body>
 <div class="container">
     <h2>TXT Preview: {{ filename }}</h2>
-    <pre>{{ content.split('\f')[0] if content else '' }}</pre>
+    <div class="text-thumbnail">
+        <pre>{{ content[:500] if content else '' }}</pre> {# Displays first 500 characters #}
+        {% if content and content|length > 500 %}
+            <p>...</p> {# Indicate more content #}
+        {% endif %}
+    </div>
     <div style="margin-top:20px; text-align:center;">
         <a href="{{ url_for('upload_file') }}">Back to Documents</a>
     </div>
