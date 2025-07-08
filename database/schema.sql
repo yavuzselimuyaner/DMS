@@ -1,4 +1,4 @@
-CREATE SCHEMA `dm21`;
+CREATE SCHEMA `dm2`;
 USE `dms2`;
 
 CREATE TABLE users (
