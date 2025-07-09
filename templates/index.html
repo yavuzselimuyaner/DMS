@@ -55,12 +55,15 @@
               <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-truncate" title="{{ doc.title }}">{{ doc.title }}</h5>
                 <p class="card-text explanation mb-1">{{ doc.description or '' }}</p>
-                <p class="mb-1"><span class="badge bg-secondary">{{ user_map[doc.uploaded_by] if doc.uploaded_by in user_map else 'Unknown' }}</span></p>
+                <p class="mb-1"><span class="badge bg-secondary">{{ user_map.get(doc.uploaded_by, 'Unknown User') }}</span></p>
                 <div class="mb-2">
                   {% set ext = doc.title.split('.')[-1].lower() %}
                   {# Preview removed as requested #}
                 </div>
                 <div class="mt-auto d-flex gap-2">
+                  {% if ext in ['pdf', 'txt', 'docx'] %}
+                    <a href="{{ url_for('preview_file', doc_id=doc.id) }}" class="btn btn-outline-info btn-sm" target="_blank">Preview</a>
+                  {% endif %}
                   <a href="{{ url_for('download_file', doc_id=doc.id) }}" class="btn btn-outline-primary btn-sm" target="_blank">Download</a>
                   {% if is_admin %}
                   <form method="post" action="{{ url_for('delete_file', doc_id=doc.id) }}" style="display:inline;">

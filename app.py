@@ -156,6 +156,9 @@ def upload_file():
     if user_ids:
         users = User.query.filter(User.id.in_(user_ids)).all()
         user_map = {u.id: u.username for u in users}
+    
+    # Add fallback for documents without uploader
+    user_map[None] = 'System User'
     for doc in documents:
         ext = os.path.splitext(doc.title)[1].lower()
         if ext == '.txt' and doc.file_data:
