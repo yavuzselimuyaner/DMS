@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Profile - DMS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+</head>
+<body>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">User Profile</h1>
+        <div>
+            <a href="{{ url_for('upload_file') }}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Back to Documents
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn btn-danger">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            {{ messages[0] }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <!-- Profile Information -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-person-circle"></i> Profile Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <label class="col-sm-4 col-form-label"><strong>User ID:</strong></label>
+                        <div class="col-sm-8">
+                            <p class="form-control-plaintext">{{ user.id }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label class="col-sm-4 col-form-label"><strong>Username:</strong></label>
+                        <div class="col-sm-8">
+                            <p class="form-control-plaintext">{{ user.username }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label class="col-sm-4 col-form-label"><strong>Email:</strong></label>
+                        <div class="col-sm-8">
+                            <p class="form-control-plaintext">{{ user.email }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label class="col-sm-4 col-form-label"><strong>Role:</strong></label>
+                        <div class="col-sm-8">
+                            <span class="badge bg-{{ 'danger' if user.role == 'admin' else 'primary' }} fs-6">
+                                {{ user.role.title() }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label class="col-sm-4 col-form-label"><strong>Member Since:</strong></label>
+                        <div class="col-sm-8">
+                            <p class="form-control-plaintext">
+                                {{ user.created_at.strftime('%B %d, %Y') if user.created_at else 'Unknown' }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-key"></i> Change Password</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="passwordForm">
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
+                            <div class="form-text">Password must be at least 6 characters long.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                            <div class="invalid-feedback" id="passwordError">
+                                Passwords do not match!
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Update Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Statistics -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Account Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-4">
+                            <div class="border-end">
+                                <h4 class="text-primary">{{ user_stats.total_documents if user_stats else 0 }}</h4>
+                                <p class="text-muted mb-0">Documents Uploaded</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border-end">
+                                <h4 class="text-success">{{ user_stats.total_size if user_stats else '0 MB' }}</h4>
+                                <p class="text-muted mb-0">Total Storage Used</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <h4 class="text-info">{{ user_stats.last_upload if user_stats else 'Never' }}</h4>
+                            <p class="text-muted mb-0">Last Upload</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if is_admin and admin_stats %}
+    <!-- Admin Dashboard -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-check"></i> Admin Dashboard</h5>
+                </div>
+                <div class="card-body">
+                    <!-- System Statistics -->
+                    <div class="row text-center mb-4">
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-danger">{{ admin_stats.total_system_documents }}</h4>
+                                <p class="text-muted mb-0">Total Documents</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-warning">{{ admin_stats.total_system_size }}</h4>
+                                <p class="text-muted mb-0">Total Storage</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="border-end">
+                                <h4 class="text-info">{{ admin_stats.total_users }}</h4>
+                                <p class="text-muted mb-0">Total Users</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-success">{{ admin_stats.recent_uploads|length }}</h4>
+                            <p class="text-muted mb-0">Recent Uploads</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Management -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Document Management</h5>
+                </div>
+                <div class="card-body">
+                    {% if all_documents %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Uploaded By</th>
+                                    <th>Upload Date</th>
+                                    <th>Size</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for doc in all_documents[:10] %}
+                                <tr>
+                                    <td>{{ doc.id }}</td>
+                                    <td>
+                                        <i class="bi bi-file-{{ 'pdf' if doc.title.endswith('.pdf') else 'text' if doc.title.endswith('.txt') else 'word' if doc.title.endswith('.docx') else 'earmark' }}"></i>
+                                        {{ doc.title[:30] }}{{ '...' if doc.title|length > 30 else '' }}
+                                    </td>
+                                    <td>{{ doc.uploader_name }}</td>
+                                    <td>{{ doc.upload_date.strftime('%Y-%m-%d %H:%M') if doc.upload_date else 'Unknown' }}</td>
+                                    <td>{{ '%.1f KB'|format((doc.file_data|length / 1024) if doc.file_data else 0) }}</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('preview_file', doc_id=doc.id) }}" class="btn btn-outline-info btn-sm" target="_blank">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('download_file', doc_id=doc.id) }}" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                            <form method="post" action="{{ url_for('admin_delete_document', doc_id=doc.id) }}" style="display:inline;">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete document: {{ doc.title }}?')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if all_documents|length > 10 %}
+                    <p class="text-muted text-center mt-3">Showing first 10 documents. <a href="{{ url_for('upload_file') }}">View all documents</a></p>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted text-center">No documents in the system.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Management -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-people"></i> User Management</h5>
+                </div>
+                <div class="card-body">
+                    {% if all_users %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Created</th>
+                                    <th>Documents</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for u in all_users %}
+                                <tr>
+                                    <td>{{ u.id }}</td>
+                                    <td>
+                                        <i class="bi bi-person{{ '-check' if u.role == 'admin' else '' }}"></i>
+                                        {{ u.username }}
+                                        {% if u.username == user.username %}<span class="badge bg-success ms-1">You</span>{% endif %}
+                                    </td>
+                                    <td>{{ u.email }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'danger' if u.role == 'admin' else 'primary' }}">
+                                            {{ u.role.title() }}
+                                        </span>
+                                    </td>
+                                    <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else 'Unknown' }}</td>
+                                    <td>
+                                        {% set user_doc_count = all_documents | selectattr('uploaded_by', 'equalto', u.id) | list | length %}
+                                        <span class="badge bg-info">{{ user_doc_count }}</span>
+                                    </td>
+                                    <td>
+                                        {% if u.username != user.username %}
+                                        <div class="btn-group btn-group-sm">
+                                            <form method="post" action="{{ url_for('admin_promote_user', user_id=u.id) }}" style="display:inline;">
+                                                <button type="submit" class="btn btn-outline-{{ 'warning' if u.role == 'admin' else 'success' }} btn-sm" 
+                                                        onclick="return confirm('Change user role for {{ u.username }}?')">
+                                                    <i class="bi bi-{{ 'arrow-down' if u.role == 'admin' else 'arrow-up' }}-circle"></i>
+                                                    {% if u.role == 'admin' %}Demote{% else %}Promote{% endif %}
+                                                </button>
+                                            </form>
+                                            <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}" style="display:inline;">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                        onclick="return confirm('Delete user: {{ u.username }} and all their documents?')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                        {% else %}
+                                        <span class="text-muted">Current User</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted text-center">No users in the system.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// Password confirmation validation
+const passwordForm = document.getElementById('passwordForm');
+const newPassword = document.getElementById('new_password');
+const confirmPassword = document.getElementById('confirm_password');
+const passwordError = document.getElementById('passwordError');
+
+function validatePasswords() {
+    if (newPassword.value !== confirmPassword.value) {
+        confirmPassword.setCustomValidity('Passwords do not match');
+        confirmPassword.classList.add('is-invalid');
+        return false;
+    } else {
+        confirmPassword.setCustomValidity('');
+        confirmPassword.classList.remove('is-invalid');
+        return true;
+    }
+}
+
+confirmPassword.addEventListener('input', validatePasswords);
+newPassword.addEventListener('input', validatePasswords);
+
+passwordForm.addEventListener('submit', function(e) {
+    if (!validatePasswords()) {
+        e.preventDefault();
+    }
+});
+</script>
+</body>
+</html>
