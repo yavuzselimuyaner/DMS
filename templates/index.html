@@ -5,60 +5,149 @@
     <title>Document Management System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 </head>
 <body>
 <div class="container">
-    <h1 class="text-center mb-4">Document Management System</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4 p-3 rounded" style="background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,249,250,0.9) 100%); border-left: 4px solid #3498db;">
+        <h1 class="mb-0 text-primary">📁 Document Management System</h1>
+        <div>
+            {% if is_admin %}
+            <a href="{{ url_for('profile') }}" class="btn btn-danger me-2">
+                <i class="bi bi-shield-check"></i> Admin Profile
+            </a>
+            {% else %}
+            <a href="{{ url_for('profile') }}" class="btn btn-outline-primary me-2">
+                <i class="bi bi-person-circle"></i> Profile
+            </a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-box-arrow-right"></i> Logout
+            </a>
+        </div>
+    </div>
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <div class="alert alert-info">{{ messages[0] }}</div>
       {% endif %}
     {% endwith %}
-    <div class="row">
-      <div class="col-md-3 d-none d-md-block">
-        <div class="bg-light rounded p-3 mb-4">
-          <h5 class="mb-3">Navigation</h5>
-          <ul class="nav flex-column">
-            <li class="nav-item mb-2"><a class="nav-link" href="#"><i class="bi bi-house"></i> Dashboard</a></li>
-            <li class="nav-item mb-2"><a class="nav-link active" href="#"><i class="bi bi-folder2"></i> Documents</a></li>
-            <li class="nav-item mb-2"><a class="nav-link" href="#"><i class="bi bi-tags"></i> Tags</a></li>
-            <li class="nav-item mb-2"><a class="nav-link" href="#"><i class="bi bi-people"></i> Users</a></li>
-          </ul>
+    
+    <!-- Filters -->
+    <div class="card mb-3" style="background: rgba(255,255,255,0.9); border: 1px solid rgba(0,0,0,0.05);">
+        <div class="card-body">
+            <h5 class="card-title text-secondary mb-3">🔍 Search & Filter Documents</h5>
+            <form method="get" class="row g-2">
+                <div class="col-md-4"><input type="text" class="form-control" name="q" placeholder="🔎 Search documents..." value="{{ query|default('') }}"></div>
+                <div class="col-md-2"><select class="form-select" name="sort">
+                    <option value="name" {% if sort_by == 'name' %}selected{% endif %}>📝 Sort by Name</option>
+                    <option value="date" {% if sort_by == 'date' %}selected{% endif %}>📅 Sort by Date</option>
+                </select></div>
+                <div class="col-md-2"><input type="date" class="form-control" name="date_from" value="{{ date_from|default('') }}" title="From Date"></div>
+                <div class="col-md-2"><input type="date" class="form-control" name="date_to" value="{{ date_to|default('') }}" title="To Date"></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">🔍 Filter</button></div>
+            </form>
         </div>
-      </div>
-      <div class="col-md-9">
-        <!-- Filters -->
-        <form method="get" class="row g-2 mb-3">
-            <div class="col-md-4"><input type="text" class="form-control" name="q" placeholder="Search documents..." value="{{ query|default('') }}"></div>
-            <div class="col-md-2"><select class="form-select" name="sort">
-                <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Sort by Name</option>
-                <option value="date" {% if sort_by == 'date' %}selected{% endif %}>Sort by Date</option>
-            </select></div>
-            <div class="col-md-2"><input type="date" class="form-control" name="date_from" value="{{ date_from|default('') }}"></div>
-            <div class="col-md-2"><input type="date" class="form-control" name="date_to" value="{{ date_to|default('') }}"></div>
-            <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Filter</button></div>
-        </form>
-        <!-- Upload Progress Bar -->
-        <div class="progress mb-2" style="height: 24px; display:none;" id="uploadProgressBar">
-          <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="uploadProgress"></div>
+    </div>
+    <!-- Upload Section -->
+    <div class="card mb-4" style="background: linear-gradient(135deg, rgba(46, 204, 113, 0.1) 0%, rgba(39, 174, 96, 0.1) 100%); border-left: 4px solid #27ae60;">
+        <div class="card-body">
+            <h5 class="card-title text-success mb-3">📤 Upload New Documents</h5>
+            <!-- Upload Progress Bar -->
+            <div class="progress mb-3" style="height: 24px; display:none;" id="uploadProgressBar">
+              <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%" id="uploadProgress"></div>
+            </div>
+            <form id="uploadForm" method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+                <div class="col-md-5"><input type="file" class="form-control" name="file" multiple required></div>
+                <div class="col-md-5"><input type="text" class="form-control" name="explanation" placeholder="📝 Explanation (optional)"></div>
+                <div class="col-md-2"><button class="btn btn-success w-100" type="submit">⬆️ Upload</button></div>
+            </form>
         </div>
-        <form id="uploadForm" method="post" enctype="multipart/form-data" class="row g-2 mb-4 align-items-end">
-            <div class="col-md-5"><input type="file" class="form-control" name="file" multiple required></div>
-            <div class="col-md-5"><input type="text" class="form-control" name="explanation" placeholder="Explanation (optional)"></div>
-            <div class="col-md-2"><button class="btn btn-success w-100" type="submit">Upload</button></div>
-        </form>
-        <h2 class="mb-3">Uploaded Documents</h2>
+    </div>
+
+    <!-- Bulk Actions Bar -->
+    <div class="card mb-3" id="bulkActionsBar" style="display: none;">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAll">
+                    <label class="form-check-label" for="selectAll">
+                        <strong>Select All (<span id="selectedCount">0</span> selected)</strong>
+                    </label>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-outline-primary btn-sm" id="bulkDownload">
+                        <i class="bi bi-download"></i> Download Selected
+                    </button>
+                    {% if is_admin %}
+                    <button class="btn btn-outline-danger btn-sm" id="bulkDelete">
+                        <i class="bi bi-trash"></i> Delete Selected
+                    </button>
+                    {% endif %}
+                    <button class="btn btn-outline-secondary btn-sm" id="clearSelection">
+                        <i class="bi bi-x"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+        <h2 class="mb-4 text-secondary">📚 Document Library</h2>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for doc in paginated_documents %}
           <div class="col">
-            <div class="card h-100 shadow-sm">
+            <div class="card h-100 shadow-sm document-card" data-doc-id="{{ doc.id }}">
+              <!-- Selection checkbox -->
+              <div class="position-absolute top-0 end-0 p-2" style="z-index: 10;">
+                <div class="form-check">
+                  <input class="form-check-input document-checkbox" type="checkbox" 
+                         value="{{ doc.id }}" id="doc_{{ doc.id }}" title="Select document">
+                  <label class="form-check-label" for="doc_{{ doc.id }}"></label>
+                </div>
+              </div>
               <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-truncate" title="{{ doc.title }}">{{ doc.title }}</h5>
                 <p class="card-text explanation mb-1">{{ doc.description or '' }}</p>
                 <p class="mb-1"><span class="badge bg-secondary">{{ user_map.get(doc.uploaded_by, 'Unknown User') }}</span></p>
-                <div class="mb-2">
+                <div class="mb-2" style="min-height: 140px; background: #f8f9fa; border-radius: 8px; overflow: hidden;">
                   {% set ext = doc.title.split('.')[-1].lower() %}
-                  {# Preview removed as requested #}
+                  {% if thumbnails[doc.id] %}
+                    {% if ext == 'pdf' %}
+                      <!-- PDF thumbnail as image -->
+                      <img src="data:image/png;base64,{{ thumbnails[doc.id] }}" 
+                           class="w-100 h-100" 
+                           style="object-fit: cover; max-height: 140px;" 
+                           alt="PDF Thumbnail">
+                    {% elif ext == 'txt' or ext == 'docx' or ext == 'doc' %}
+                      <!-- Text thumbnail -->
+                      <div class="p-2 h-100 d-flex align-items-start">
+                        <pre class="small mb-0 text-muted" style="font-size: 0.7rem; line-height: 1.3; white-space: pre-wrap; word-wrap: break-word;">{{ thumbnails[doc.id] }}</pre>
+                      </div>
+                    {% endif %}
+                  {% else %}
+                    <!-- Fallback icons -->
+                    <div class="d-flex align-items-center justify-content-center h-100">
+                      {% if ext == 'pdf' %}
+                        <div class="text-center">
+                          <i class="bi bi-file-earmark-pdf text-danger" style="font-size: 3rem;"></i>
+                          <div class="small text-muted mt-1">PDF</div>
+                        </div>
+                      {% elif ext == 'txt' %}
+                        <div class="text-center">
+                          <i class="bi bi-file-earmark-text text-primary" style="font-size: 3rem;"></i>
+                          <div class="small text-muted mt-1">Text</div>
+                        </div>
+                      {% elif ext == 'docx' or ext == 'doc' %}
+                        <div class="text-center">
+                          <i class="bi bi-file-earmark-word text-info" style="font-size: 3rem;"></i>
+                          <div class="small text-muted mt-1">Word</div>
+                        </div>
+                      {% else %}
+                        <div class="text-center">
+                          <i class="bi bi-file-earmark text-secondary" style="font-size: 3rem;"></i>
+                          <div class="small text-muted mt-1">{{ ext.upper() }}</div>
+                        </div>
+                      {% endif %}
+                    </div>
+                  {% endif %}
                 </div>
                 <div class="mt-auto d-flex gap-2">
                   {% if ext in ['pdf', 'txt', 'docx'] %}
@@ -103,11 +192,7 @@
           </ul>
         </nav>
         {% endif %}
-      </div>
-    </div>
-    <div class="mt-4 text-center">
-        <a href="{{ url_for('logout') }}" class="btn btn-secondary">Logout</a>
-    </div>
+    
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -148,6 +233,137 @@ if (uploadForm) {
     };
     xhr.send(formData);
   });
+}
+
+// Bulk selection functionality
+const bulkActionsBar = document.getElementById('bulkActionsBar');
+const selectAllCheckbox = document.getElementById('selectAll');
+const selectedCountSpan = document.getElementById('selectedCount');
+const documentCheckboxes = document.querySelectorAll('.document-checkbox');
+const bulkDownloadBtn = document.getElementById('bulkDownload');
+const bulkDeleteBtn = document.getElementById('bulkDelete');
+const clearSelectionBtn = document.getElementById('clearSelection');
+
+let selectedDocuments = new Set();
+
+// Update UI based on selection
+function updateSelectionUI() {
+    const count = selectedDocuments.size;
+    selectedCountSpan.textContent = count;
+    
+    if (count > 0) {
+        bulkActionsBar.style.display = 'block';
+    } else {
+        bulkActionsBar.style.display = 'none';
+    }
+    
+    // Update select all checkbox state
+    if (count === 0) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = false;
+    } else if (count === documentCheckboxes.length) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = true;
+    } else {
+        selectAllCheckbox.indeterminate = true;
+    }
+}
+
+// Handle individual checkbox changes
+documentCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+        const docId = this.value;
+        if (this.checked) {
+            selectedDocuments.add(docId);
+            this.closest('.document-card').classList.add('border-primary');
+        } else {
+            selectedDocuments.delete(docId);
+            this.closest('.document-card').classList.remove('border-primary');
+        }
+        updateSelectionUI();
+    });
+});
+
+// Handle select all checkbox
+selectAllCheckbox.addEventListener('change', function() {
+    documentCheckboxes.forEach(checkbox => {
+        checkbox.checked = this.checked;
+        const docId = checkbox.value;
+        if (this.checked) {
+            selectedDocuments.add(docId);
+            checkbox.closest('.document-card').classList.add('border-primary');
+        } else {
+            selectedDocuments.delete(docId);
+            checkbox.closest('.document-card').classList.remove('border-primary');
+        }
+    });
+    updateSelectionUI();
+});
+
+// Clear selection
+clearSelectionBtn.addEventListener('click', function() {
+    documentCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+        checkbox.closest('.document-card').classList.remove('border-primary');
+    });
+    selectedDocuments.clear();
+    updateSelectionUI();
+});
+
+// Bulk download
+bulkDownloadBtn.addEventListener('click', function() {
+    if (selectedDocuments.size === 0) {
+        alert('Please select documents to download');
+        return;
+    }
+    
+    const docIds = Array.from(selectedDocuments);
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/bulk_download';
+    
+    docIds.forEach(docId => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'doc_ids';
+        input.value = docId;
+        form.appendChild(input);
+    });
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+});
+
+// Bulk delete
+if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener('click', function() {
+        if (selectedDocuments.size === 0) {
+            alert('Please select documents to delete');
+            return;
+        }
+        
+        if (!confirm(`Are you sure you want to delete ${selectedDocuments.size} selected document(s)?`)) {
+            return;
+        }
+        
+        const docIds = Array.from(selectedDocuments);
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/bulk_delete';
+        
+        docIds.forEach(docId => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'doc_ids';
+            input.value = docId;
+            form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
 }
 </script>
 </body>
