@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Create Account</title>
+    <title>Hesap Oluştur</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
 </head>
 <body>
 <div class="d-flex justify-content-center align-items-center min-vh-100">
   <div class="container centered-form">
-    <h2 class="mb-4 text-center">Create Account</h2>
+    <h2 class="mb-4 text-center">Hesap Oluştur</h2>
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <div class="alert alert-info text-center">{{ messages[0] }}</div>
@@ -17,26 +17,34 @@
     {% endwith %}
     <form method="post" id="registerForm" class="mb-3">
         <div class="mb-3">
-            <label for="reg_username" class="form-label">Username</label>
+            <label for="reg_username" class="form-label">Kullanıcı Adı</label>
             <input type="text" class="form-control" id="reg_username" name="reg_username" required>
         </div>
         <div class="mb-3">
-            <label for="reg_email" class="form-label">Email</label>
+            <label for="reg_email" class="form-label">E-posta</label>
             <input type="email" class="form-control" id="reg_email" name="reg_email" required>
         </div>
         <div class="mb-3">
-            <label for="reg_password" class="form-label">Password</label>
+            <label for="reg_password" class="form-label">Şifre</label>
             <input type="password" class="form-control" id="reg_password" name="reg_password" required>
         </div>
         <div class="mb-3">
-            <label for="reg_password2" class="form-label">Confirm Password</label>
+            <label for="reg_password2" class="form-label">Şifre Onayı</label>
             <input type="password" class="form-control" id="reg_password2" name="reg_password2" required>
         </div>
-        <div class="mb-3 text-danger text-center" id="pwError" style="display:none;">Passwords do not match!</div>
-        <button type="submit" class="btn btn-success w-100">Register</button>
+        <div class="mb-3">
+            <label for="reg_role" class="form-label">Rol</label>
+            <select class="form-select" id="reg_role" name="reg_role" required>
+                <option value="">Rol Seçin</option>
+                <option value="user">Kullanıcı</option>
+                <option value="calisan">Çalışan</option>
+            </select>
+        </div>
+        <div class="mb-3 text-danger text-center" id="pwError" style="display:none;">Şifreler eşleşmiyor!</div>
+        <button type="submit" class="btn btn-success w-100">Kayıt Ol</button>
     </form>
     <div class="text-center">
-        <a href="{{ url_for('login') }}">Already have an account? Login</a>
+        <a href="{{ url_for('login') }}">Zaten hesabınız var mı? Giriş Yapın</a>
     </div>
   </div>
 </div>
