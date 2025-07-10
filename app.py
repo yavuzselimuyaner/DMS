@@ -29,6 +29,46 @@ def is_admin():
 def is_logged_in():
     return 'username' in session
 
+def get_accessible_document_types():
+    """Get document types that current user can access based on hierarchy"""
+    user_role = session.get('role', 'user')
+    
+    # Hierarchy: admin > user > calisan (çalışan)
+    if user_role == 'admin':
+        # Admin can see all document types
+        return DocumentType.query.all()
+    elif user_role == 'user':
+        # User can see user and employee documents
+        return DocumentType.query.filter(DocumentType.name.in_(['Kullanıcı', 'Çalışan'])).all()
+    elif user_role == 'calisan':
+        # Employee can only see employee documents
+        return DocumentType.query.filter_by(name='Çalışan').all()
+    else:
+        # Default: can only see employee documents
+        return DocumentType.query.filter_by(name='Çalışan').all()
+
+def can_access_document(document):
+    """Check if current user can access this document based on hierarchy"""
+    user_role = session.get('role', 'user')
+    
+    if not document.document_type_id:
+        return True  # Old documents without type are accessible to all
+    
+    doc_type = DocumentType.query.get(document.document_type_id)
+    if not doc_type:
+        return True
+    
+    # Hierarchy check
+    if user_role == 'admin':
+        return True  # Admin can access all
+    elif user_role == 'user':
+        return doc_type.name in ['Kullanıcı', 'Çalışan']
+    elif user_role == 'calisan':
+        return doc_type.name == 'Çalışan'
+    else:
+        # Default: can only see employee documents
+        return doc_type.name == 'Çalışan'
+
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -99,10 +139,10 @@ def login():
             if user and check_password_hash(user.password_hash, password):
                 session['username'] = user.username
                 session['role'] = user.role
-                flash('Login successful!')
+                flash('Giriş başarılı!')
                 return redirect(url_for('upload_file'))
             else:
-                flash('Invalid credentials')
+                flash('Geçersiz kullanıcı adı veya şifre')
         elif 'register' in request.form:
             # Kayıt işlemi
             username = request.form['reg_username'].strip()
@@ -110,7 +150,7 @@ def login():
             password = request.form['reg_password']
             # Kullanıcı adı veya e-posta var mı?
             if db.session.query(User).filter((User.username == username) | (User.email == email)).first():
-                flash('Username or email already exists')
+                flash('Kullanıcı adı veya e-posta zaten mevcut')
             else:
                 user = User(
                     username=username,
@@ -121,13 +161,13 @@ def login():
                 )
                 db.session.add(user)
                 db.session.commit()
-                flash('Account created! You can now log in.')
+                flash('Hesap oluşturuldu! Şimdi giriş yapabilirsiniz.')
     return render_template('login_register.html')
 
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Logged out.')
+    flash('Çıkış yapıldı.')
     return redirect(url_for('login'))
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -137,7 +177,7 @@ def profile():
     
     user = db.session.query(User).filter_by(username=session['username']).first()
     if not user:
-        flash('User not found')
+        flash('Kullanıcı bulunamadı')
         return redirect(url_for('login'))
     
     # Get user statistics
@@ -149,11 +189,11 @@ def profile():
     total_size = f"{total_size_bytes / (1024*1024):.1f} MB" if total_size_bytes > 0 else "0 MB"
     
     # Last upload date
-    last_upload = "Never"
+    last_upload = "Hiç yüklenmedi"
     if user_documents:
         latest_doc = max(user_documents, key=lambda x: x.upload_date if x.upload_date else datetime.datetime.min)
         if latest_doc.upload_date:
-            last_upload = latest_doc.upload_date.strftime('%B %d, %Y')
+            last_upload = latest_doc.upload_date.strftime('%d %B %Y')
     
     user_stats = {
         'total_documents': total_documents,
@@ -183,11 +223,11 @@ def profile():
         
         # Create user map for admin view
         user_map = {u.id: u.username for u in all_users}
-        user_map[None] = 'System User'
+        user_map[None] = 'Sistem Kullanıcısı'
         
         # Add user info to documents for admin view
         for doc in all_documents:
-            doc.uploader_name = user_map.get(doc.uploaded_by, 'Unknown User')
+            doc.uploader_name = user_map.get(doc.uploaded_by, 'Bilinmeyen Kullanıcı')
     
     if request.method == 'POST':
         current_password = request.form['current_password']
@@ -196,23 +236,23 @@ def profile():
         
         # Verify current password
         if not check_password_hash(user.password_hash, current_password):
-            flash('Current password is incorrect')
+            flash('Mevcut şifre yanlış')
             return render_template('profile.html', user=user, user_stats=user_stats, admin_stats=admin_stats, all_documents=all_documents, all_users=all_users, is_admin=is_admin())
         
         # Check if new passwords match
         if new_password != confirm_password:
-            flash('New passwords do not match')
+            flash('Yeni şifreler eşleşmiyor')
             return render_template('profile.html', user=user, user_stats=user_stats, admin_stats=admin_stats, all_documents=all_documents, all_users=all_users, is_admin=is_admin())
         
         # Check password length
         if len(new_password) < 6:
-            flash('Password must be at least 6 characters long')
+            flash('Şifre en az 6 karakter olmalıdır')
             return render_template('profile.html', user=user, user_stats=user_stats, admin_stats=admin_stats, all_documents=all_documents, all_users=all_users, is_admin=is_admin())
         
         # Update password
         user.password_hash = generate_password_hash(new_password)
         db.session.commit()
-        flash('Password updated successfully!')
+        flash('Şifre başarıyla güncellendi!')
         return render_template('profile.html', user=user, user_stats=user_stats, admin_stats=admin_stats, all_documents=all_documents, all_users=all_users, is_admin=is_admin())
     
     return render_template('profile.html', user=user, user_stats=user_stats, admin_stats=admin_stats, all_documents=all_documents, all_users=all_users, is_admin=is_admin())
@@ -221,13 +261,36 @@ def profile():
 def upload_file():
     if not is_logged_in():
         return redirect(url_for('login'))
+    
+    # Get view mode - either upload form or document list
+    view_mode = request.args.get('view', 'upload')  # 'upload' or 'documents'
+    
     query = request.args.get('q', '').lower()
     sort_by = request.args.get('sort', 'name')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     page = request.args.get('page', 1, type=int)
     per_page = 9
+    
+    # Get documents with hierarchy filtering
     documents = Document.query
+    
+    # Apply hierarchy filter
+    accessible_doc_types = get_accessible_document_types()
+    accessible_type_ids = [dt.id for dt in accessible_doc_types]
+    
+    if accessible_type_ids:
+        # Include documents with accessible types OR documents without type (old documents)
+        documents = documents.filter(
+            db.or_(
+                Document.document_type_id.in_(accessible_type_ids),
+                Document.document_type_id.is_(None)
+            )
+        )
+    else:
+        # If no accessible types, only show documents without type
+        documents = documents.filter(Document.document_type_id.is_(None))
+    
     if query:
         documents = documents.filter(Document.title.ilike(f'%{query}%'))
     if date_from:
@@ -242,18 +305,35 @@ def upload_file():
     else:
         documents = documents.order_by(Document.title.asc())
     documents = documents.all()
+    
     # Pagination
     total = len(documents)
     page_count = (total // per_page) + (1 if total % per_page else 0)
     start = (page - 1) * per_page
     end = start + per_page
     paginated_documents = documents[start:end]
+    
+    # Get document types for upload form
+    document_types = DocumentType.query.all()
+    
     if request.method == 'POST':
         files = request.files.getlist('file')
         explanation = request.form.get('explanation', '').strip()
+        document_type_id = request.form.get('document_type_id')
+        
         if not files or files[0].filename == '':
-            flash('No selected file')
+            flash('Dosya seçilmedi')
             return redirect(request.url)
+        
+        # Convert document_type_id to int if provided
+        if document_type_id and document_type_id != '':
+            try:
+                document_type_id = int(document_type_id)
+            except ValueError:
+                document_type_id = None
+        else:
+            document_type_id = None
+        
         user = None
         if 'username' in session:
             user = db.session.query(User).filter_by(username=session['username']).first()
@@ -268,7 +348,7 @@ def upload_file():
                     upload_date=datetime.datetime.now(),
                     file_path='',
                     uploaded_by=user.id if user else None,
-                    document_type_id=None,
+                    document_type_id=document_type_id,
                     access_level='private',
                     file_data=file_data
                 )
@@ -276,23 +356,30 @@ def upload_file():
                 uploaded_count += 1
         if uploaded_count > 0:
             db.session.commit()
-            flash(f'{uploaded_count} file(s) successfully uploaded')
+            flash(f'{uploaded_count} dosya başarıyla yüklendi')
         else:
-            flash('No valid files uploaded')
+            flash('Geçerli dosya yüklenmedi')
         return redirect(url_for('upload_file'))
-    # TXT dosyaları için önizleme (ilk 3 satır)
-    previews = {}
+    
+    # Create user map and document type map
     user_map = {}
     user_ids = set(doc.uploaded_by for doc in documents if doc.uploaded_by)
     if user_ids:
         users = User.query.filter(User.id.in_(user_ids)).all()
         user_map = {u.id: u.username for u in users}
+    user_map[None] = 'Sistem Kullanıcısı'
     
-    # Add fallback for documents without uploader
-    user_map[None] = 'System User'
+    # Create document type map
+    doc_type_map = {}
+    doc_type_ids = set(doc.document_type_id for doc in documents if doc.document_type_id)
+    if doc_type_ids:
+        doc_types = DocumentType.query.filter(DocumentType.id.in_(doc_type_ids)).all()
+        doc_type_map = {dt.id: dt.name for dt in doc_types}
+    doc_type_map[None] = 'Tür Belirtilmemiş'
     
     # Generate thumbnails for documents
     thumbnails = {}
+    previews = {}
     for doc in documents:
         ext = os.path.splitext(doc.title)[1].lower()
         if doc.file_data:
@@ -300,8 +387,7 @@ def upload_file():
             thumbnails[doc.id] = thumbnail
         else:
             thumbnails[doc.id] = None
-    for doc in documents:
-        ext = os.path.splitext(doc.title)[1].lower()
+            
         if ext == '.txt' and doc.file_data:
             try:
                 content = doc.file_data.decode('utf-8', errors='ignore')
@@ -310,27 +396,45 @@ def upload_file():
                 previews[doc.id] = ''
         else:
             previews[doc.id] = ''
-    return render_template('index.html', documents=documents, paginated_documents=paginated_documents, sort_by=sort_by, query=query, date_from=date_from, date_to=date_to, is_admin=is_admin(), previews=previews, page=page, per_page=per_page, page_count=page_count, total=total, user_map=user_map, thumbnails=thumbnails)
+    
+    return render_template('index.html', 
+                         documents=documents, 
+                         paginated_documents=paginated_documents, 
+                         sort_by=sort_by, 
+                         query=query, 
+                         date_from=date_from, 
+                         date_to=date_to, 
+                         is_admin=is_admin(), 
+                         previews=previews, 
+                         page=page, 
+                         per_page=per_page, 
+                         page_count=page_count, 
+                         total=total, 
+                         user_map=user_map, 
+                         thumbnails=thumbnails,
+                         document_types=document_types,
+                         doc_type_map=doc_type_map,
+                         view_mode=view_mode)
 
 @app.route('/delete/<int:doc_id>', methods=['POST'])
 def delete_file(doc_id):
     if not is_admin():
-        flash('Unauthorized')
+        flash('Yetkisiz erişim')
         return redirect(url_for('upload_file'))
     doc = Document.query.get(doc_id)
     if doc:
         db.session.delete(doc)
         db.session.commit()
-        flash('File deleted')
+        flash('Dosya silindi')
     else:
-        flash('File not found')
+        flash('Dosya bulunamadı')
     return redirect(url_for('upload_file'))
 
 @app.route('/download/<int:doc_id>')
 def download_file(doc_id):
     doc = Document.query.get(doc_id)
     if not doc or not doc.file_data:
-        flash('File not found')
+        flash('Dosya bulunamadı')
         return redirect(url_for('upload_file'))
     # PDF önizleme için as_attachment parametresi kontrolü
     preview = request.args.get('preview', '0') == '1'
@@ -342,7 +446,7 @@ def preview_file(doc_id):
         return redirect(url_for('login'))
     doc = Document.query.get(doc_id)
     if not doc or not doc.file_data:
-        flash('File not found')
+        flash('Dosya bulunamadı')
         return redirect(url_for('upload_file'))
     ext = os.path.splitext(doc.title)[1].lower()
     if ext == '.pdf':
@@ -362,10 +466,10 @@ def preview_file(doc_id):
             content = '\n'.join(paragraphs)
             os.remove(tmp_path)
         except Exception as e:
-            content = f'Error reading DOCX: {e}'
+            content = f'DOCX okuma hatası: {e}'
         return render_template('preview_docx.html', filename=doc.title, content=content, doc_id=doc.id)
     else:
-        flash('Preview not supported for this file type.')
+        flash('Bu dosya türü için önizleme desteklenmiyor.')
         return redirect(url_for('upload_file'))
 
 @app.route('/register_only', methods=['GET', 'POST'])
@@ -375,28 +479,39 @@ def register_only():
         email = request.form['reg_email'].strip()
         password = request.form['reg_password']
         password2 = request.form['reg_password2']
+        role = request.form.get('reg_role', 'user').strip()
+        
+        # Rol validasyonu
+        if role not in ['user', 'calisan']:
+            role = 'user'
+        
         if password != password2:
-            flash('Passwords do not match!')
+            flash('Şifreler eşleşmiyor!')
             return render_template('register_only.html')
         if db.session.query(User).filter((User.username == username) | (User.email == email)).first():
-            flash('Username or email already exists')
+            flash('Kullanıcı adı veya e-posta zaten mevcut')
             return render_template('register_only.html')
         user = User(
             username=username,
             email=email,
             password_hash=generate_password_hash(password),
-            role='user',
+            role=role,
             created_at=datetime.datetime.now()
         )
         db.session.add(user)
         db.session.commit()
-        flash('Account created! You can now log in.')
+        flash('Hesap oluşturuldu! Şimdi giriş yapabilirsiniz.')
         return redirect(url_for('login'))
     return render_template('register_only.html')
 
 @app.route('/init_admin')
 def init_admin():
-    """Initialize default admin user if not exists"""
+    """Initialize default admin user and document types if not exists"""
+    # Create all database tables
+    with app.app_context():
+        db.create_all()
+    
+    # Create admin user
     admin_user = User.query.filter_by(username='admin').first()
     if not admin_user:
         admin_user = User(
@@ -407,10 +522,35 @@ def init_admin():
             created_at=datetime.datetime.now()
         )
         db.session.add(admin_user)
+    
+    # Create document types
+    doc_types = ['Yönetici', 'Kullanıcı', 'Çalışan']
+    created_types = []
+    for doc_type_name in doc_types:
+        existing_type = DocumentType.query.filter_by(name=doc_type_name).first()
+        if not existing_type:
+            doc_type = DocumentType(name=doc_type_name)
+            db.session.add(doc_type)
+            created_types.append(doc_type_name)
+    
+    try:
         db.session.commit()
-        return "Admin user created successfully! Username: admin, Password: adminpass"
-    else:
-        return "Admin user already exists"
+        result_msg = "Kurulum tamamlandı!\n"
+        if not User.query.filter_by(username='admin').first():
+            result_msg += "✅ Admin kullanıcısı oluşturuldu (Kullanıcı adı: admin, Şifre: adminpass)\n"
+        else:
+            result_msg += "ℹ️ Admin kullanıcısı zaten mevcut\n"
+        
+        if created_types:
+            result_msg += f"✅ Döküman türleri oluşturuldu: {', '.join(created_types)}\n"
+        else:
+            result_msg += "ℹ️ Döküman türleri zaten mevcut\n"
+            
+        result_msg += "✅ Veritabanı tabloları kontrol edildi ve oluşturuldu"
+        return result_msg.replace('\n', '<br>')
+    except Exception as e:
+        db.session.rollback()
+        return f"Hata oluştu: {str(e)}"
 
 # SQLAlchemy Models
 class User(db.Model):
@@ -452,29 +592,29 @@ class Permission(db.Model):
 @app.route('/admin/delete_document/<int:doc_id>', methods=['POST'])
 def admin_delete_document(doc_id):
     if not is_admin():
-        flash('Unauthorized access')
+        flash('Yetkisiz erişim')
         return redirect(url_for('profile'))
     
     doc = Document.query.get(doc_id)
     if doc:
         db.session.delete(doc)
         db.session.commit()
-        flash(f'Document "{doc.title}" deleted successfully')
+        flash(f'Döküman "{doc.title}" başarıyla silindi')
     else:
-        flash('Document not found')
+        flash('Döküman bulunamadı')
     
     return redirect(url_for('profile'))
 
 @app.route('/admin/delete_user/<int:user_id>', methods=['POST'])
 def admin_delete_user(user_id):
     if not is_admin():
-        flash('Unauthorized access')
+        flash('Yetkisiz erişim')
         return redirect(url_for('profile'))
     
     # Prevent admin from deleting themselves
     current_user = db.session.query(User).filter_by(username=session['username']).first()
     if current_user and current_user.id == user_id:
-        flash('Cannot delete your own account')
+        flash('Kendi hesabınızı silemezsiniz')
         return redirect(url_for('profile'))
     
     user = User.query.get(user_id)
@@ -487,9 +627,9 @@ def admin_delete_user(user_id):
         # Delete the user
         db.session.delete(user)
         db.session.commit()
-        flash(f'User "{user.username}" and their documents deleted successfully')
+        flash(f'Kullanıcı "{user.username}" ve dökümanları başarıyla silindi')
     else:
-        flash('User not found')
+        flash('Kullanıcı bulunamadı')
     
     return redirect(url_for('profile'))
 
@@ -504,13 +644,13 @@ def admin_promote_user(user_id):
         if user.role == 'user':
             user.role = 'admin'
             db.session.commit()
-            flash(f'User "{user.username}" promoted to admin')
+            flash(f'Kullanıcı "{user.username}" yönetici olarak yükseltildi')
         elif user.role == 'admin':
             user.role = 'user'
             db.session.commit()
-            flash(f'User "{user.username}" demoted to regular user')
+            flash(f'Kullanıcı "{user.username}" normal kullanıcı olarak düşürüldü')
     else:
-        flash('User not found')
+        flash('Kullanıcı bulunamadı')
     
     return redirect(url_for('profile'))
 
@@ -521,7 +661,7 @@ def bulk_download():
     
     doc_ids = request.form.getlist('doc_ids')
     if not doc_ids:
-        flash('No documents selected for download')
+        flash('İndirmek için döküman seçilmedi')
         return redirect(url_for('upload_file'))
     
     # If only one document, download directly
@@ -546,12 +686,12 @@ def bulk_download():
         # Send the ZIP file
         return send_file(
             temp_zip.name,
-            download_name=f'documents_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.zip',
+            download_name=f'dokumanlar_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.zip',
             as_attachment=True,
             mimetype='application/zip'
         )
     except Exception as e:
-        flash(f'Error creating download: {str(e)}')
+        flash(f'İndirme oluşturma hatası: {str(e)}')
         return redirect(url_for('upload_file'))
     finally:
         # Clean up temp file after sending
@@ -563,12 +703,12 @@ def bulk_download():
 @app.route('/bulk_delete', methods=['POST'])
 def bulk_delete():
     if not is_admin():
-        flash('Unauthorized access')
+        flash('Yetkisiz erişim')
         return redirect(url_for('upload_file'))
     
     doc_ids = request.form.getlist('doc_ids')
     if not doc_ids:
-        flash('No documents selected for deletion')
+        flash('Silmek için döküman seçilmedi')
         return redirect(url_for('upload_file'))
     
     try:
@@ -580,12 +720,17 @@ def bulk_delete():
                 deleted_count += 1
         
         db.session.commit()
-        flash(f'{deleted_count} document(s) deleted successfully')
+        flash(f'{deleted_count} döküman başarıyla silindi')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error deleting documents: {str(e)}')
+        flash(f'Döküman silme hatası: {str(e)}')
     
     return redirect(url_for('upload_file'))
 
 if __name__ == '__main__':
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
+        print("✅ Database tables created/checked")
+    
     app.run(debug=True)
