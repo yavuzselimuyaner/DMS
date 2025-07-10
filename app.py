@@ -7,6 +7,10 @@ from io import BytesIO
 import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 import base64
+import secrets
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
@@ -16,6 +20,15 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.secret_key = 'your_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:yavuz@localhost:3306/dms2'
+
+# E-mail configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'yavuzselimuyaner@gmail.com'  # Sizin e-posta adresiniz
+app.config['MAIL_PASSWORD'] = 'iaamgssfqdrkftdz'          # Gmail app password
+app.config['MAIL_DEFAULT_SENDER'] = 'yavuzselimuyaner@gmail.com'
+
 db = SQLAlchemy(app)
 # Simple user system (for demo)
 USERS = {
@@ -561,6 +574,8 @@ class User(db.Model):
     password_hash = db.Column(db.Text, nullable=False)
     role = db.Column(db.String(20), nullable=False)
     created_at = db.Column(db.DateTime)
+    reset_token = db.Column(db.String(100), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
 
 class DocumentType(db.Model):
     __tablename__ = 'document_types'
@@ -726,6 +741,124 @@ def bulk_delete():
         flash(f'Döküman silme hatası: {str(e)}')
     
     return redirect(url_for('upload_file'))
+
+def send_email(to_email, subject, body):
+    """Send email using SMTP"""
+    try:
+        # Debug için konsola da yazdır
+        print(f"=== E-POSTA GÖNDERİLİYOR ===")
+        print(f"Kime: {to_email}")
+        print(f"Konu: {subject}")
+        print(f"========================")
+        
+        # Gerçek e-posta gönderimi
+        msg = MIMEMultipart()
+        msg['From'] = app.config['MAIL_DEFAULT_SENDER']
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        server.starttls()
+        server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
+        text = msg.as_string()
+        server.sendmail(app.config['MAIL_DEFAULT_SENDER'], to_email, text)
+        server.quit()
+        
+        print("✅ E-posta başarıyla gönderildi!")
+        return True
+    except Exception as e:
+        print(f"❌ E-posta gönderme hatası: {e}")
+        return False
+
+def generate_reset_token():
+    """Generate a secure reset token"""
+    return secrets.token_urlsafe(32)
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form['email'].strip()
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # Generate reset token
+            reset_token = generate_reset_token()
+            user.reset_token = reset_token
+            user.reset_token_expires = datetime.datetime.now() + datetime.timedelta(hours=1)  # 1 saat geçerli
+            
+            try:
+                db.session.commit()
+                
+                # Send reset email
+                reset_url = url_for('reset_password', token=reset_token, _external=True)
+                
+                email_body = f"""
+                <html>
+                <body>
+                    <h2>DMS - Şifre Sıfırlama</h2>
+                    <p>Merhaba {user.username},</p>
+                    <p>Şifrenizi sıfırlamak için aşağıdaki linke tıklayın:</p>
+                    <p><a href="{reset_url}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Şifremi Sıfırla</a></p>
+                    <p>Bu link 1 saat boyunca geçerlidir.</p>
+                    <p>Eğer şifre sıfırlama talebinde bulunmadıysanız, bu e-postayı göz ardı edebilirsiniz.</p>
+                    <br>
+                    <p>DMS Ekibi</p>
+                </body>
+                </html>
+                """
+                
+                if send_email(user.email, "DMS - Şifre Sıfırlama", email_body):
+                    flash('Şifre sıfırlama linki e-posta adresinize gönderildi.')
+                else:
+                    flash('E-posta gönderilirken bir hata oluştu. Lütfen tekrar deneyin.')
+                    
+            except Exception as e:
+                db.session.rollback()
+                flash('Bir hata oluştu. Lütfen tekrar deneyin.')
+        else:
+            # Güvenlik için, e-posta bulunamasa bile başarılı mesaj göster
+            flash('Eğer bu e-posta adresi sistemde kayıtlı ise, şifre sıfırlama linki gönderildi.')
+        
+        return redirect(url_for('login'))
+    
+    return render_template('forgot_password.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    user = User.query.filter_by(reset_token=token).first()
+    
+    if not user or not user.reset_token_expires or user.reset_token_expires < datetime.datetime.now():
+        flash('Geçersiz veya süresi dolmuş sıfırlama linki.')
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        
+        if new_password != confirm_password:
+            flash('Şifreler eşleşmiyor!')
+            return render_template('reset_password.html', token=token)
+        
+        if len(new_password) < 6:
+            flash('Şifre en az 6 karakter olmalıdır!')
+            return render_template('reset_password.html', token=token)
+        
+        # Update password and clear reset token
+        user.password_hash = generate_password_hash(new_password)
+        user.reset_token = None
+        user.reset_token_expires = None
+        
+        try:
+            db.session.commit()
+            flash('Şifreniz başarıyla güncellendi! Şimdi giriş yapabilirsiniz.')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Şifre güncellenirken bir hata oluştu.')
+    
+    return render_template('reset_password.html', token=token)
 
 if __name__ == '__main__':
     # Create database tables if they don't exist
